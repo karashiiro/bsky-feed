@@ -1,8 +1,8 @@
 import { FeedHandler } from "./base";
-import * as whatsAlf from "./whats-alf";
+import * as feed from "./feed";
 
 const algos: Record<string, FeedHandler> = {
-  [whatsAlf.shortname]: whatsAlf.handler,
+  [feed.shortname]: feed.handler,
 };
 
 export default algos;

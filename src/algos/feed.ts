@@ -8,7 +8,7 @@ import { CreateOp } from "../util/ops";
 import { Record as PostRecord } from "../lexicon/types/app/bsky/feed/post";
 
 // max 15 chars
-export const shortname = "whats-alf";
+export const shortname = "feed";
 
 export const handler = new (class extends FeedHandler {
   filter(create: CreateOp<PostRecord>): boolean {

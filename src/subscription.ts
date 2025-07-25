@@ -5,6 +5,7 @@ import {
 import { getOpsByType } from "./util/ops";
 import { FirehoseSubscriptionBase } from "./util/subscription";
 import algos from "./algos";
+import { subMinutes } from "date-fns";
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
@@ -26,12 +27,19 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         };
       });
 
-    if (postsToDelete.length > 0) {
-      await this.db
-        .deleteFrom("post")
-        .where("uri", "in", postsToDelete)
-        .execute();
-    }
+    // delete posts that are either in the delete list or older than 15 minutes
+    // this is to prevent the db from growing indefinitely
+    const deadline = subMinutes(new Date(), 15);
+    await this.db
+      .deleteFrom("post")
+      .where((eb) =>
+        eb.or([
+          eb("uri", "in", postsToDelete),
+          eb("indexedAt", "<", deadline.toISOString()),
+        ]),
+      )
+      .execute();
+
     if (postsToCreate.length > 0) {
       await this.db
         .insertInto("post")

@@ -20,6 +20,7 @@
     "@atproto/syntax": "^0.1.2",
     "@atproto/xrpc-server": "^0.7.9",
     "better-sqlite3": "^11.3.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "express-winston": "^4.2.0",

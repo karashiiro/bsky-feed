@@ -9,6 +9,8 @@ import { createDb, Database, migrateToLatest } from "./db";
 import { FirehoseSubscription } from "./subscription";
 import { AppContext, Config } from "./config";
 import wellKnown from "./well-known";
+import winston from "winston";
+import expressWinston from "express-winston";
 
 export class FeedGenerator {
   public app: express.Application;
@@ -39,6 +41,14 @@ export class FeedGenerator {
       plcUrl: "https://plc.directory",
       didCache,
     });
+
+    app.use(
+      expressWinston.logger({
+        transports: [new winston.transports.Console()],
+        format: winston.format.json(),
+        msg: "{{res.statusCode}} {{req.method}} {{res.responseTime}}ms {{req.url}}",
+      }),
+    );
 
     const server = createServer({
       validateResponse: true,

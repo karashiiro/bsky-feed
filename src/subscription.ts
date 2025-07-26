@@ -18,6 +18,20 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     // TODO: The whole graph algorithm, outputs go in postsToCreate
     const likes = ops.likes.creates;
 
+    /* pseudocode for like graph algorithm
+    when like created:
+      // identifying cluster via sampling
+      create a histogram
+      get users for all likes of the liked post
+      for each user:
+        get their latest N likes
+        add authors of those posts to histogram
+      select top P% users from histogram
+      // post selection from cluster
+      select latest M posts from each
+      shuffle those into the feed for the user who liked the original post
+     */
+
     const deadline = subMinutes(new Date(), 15);
     await this.db
       .deleteFrom("post")

@@ -2,12 +2,18 @@ import {
   OutputSchema as RepoEvent,
   isCommit,
 } from "./lexicon/types/com/atproto/sync/subscribeRepos";
-import { getOpsByType } from "./util/ops";
+import { getOpsByType, isLike, isPost } from "./util/ops";
 import { FirehoseSubscriptionBase } from "./util/subscription";
 import { subDays } from "date-fns";
 import { AtpAgent } from "@atproto/api";
 import { chunk } from "lodash";
 import { Database } from "./db";
+
+interface PDSDirectoryResponse {
+  service: {
+    serviceEndpoint: string;
+  }[];
+}
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private agent: AtpAgent;
@@ -56,6 +62,21 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     return this.monitoredUsers.size === 0 || this.monitoredUsers.has(did);
   }
 
+  private async getServiceForIdentity(did: string): Promise<string> {
+    try {
+      const profile = await fetch(`https://plc.directory/${did}/`);
+      const data = (await profile.json()) as PDSDirectoryResponse;
+      const serviceEndpoint = data.service[0]?.serviceEndpoint;
+      if (!serviceEndpoint) {
+        throw new Error(`No service endpoint found for identity ${did}`);
+      }
+      return serviceEndpoint;
+    } catch (err) {
+      console.warn(`Failed to get service for identity ${did}:`, err);
+      throw err;
+    }
+  }
+
   private async getLikers(uri: string): Promise<string[]> {
     await this.ensureAuth();
     try {
@@ -81,44 +102,53 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     }
   }
 
-  private async getUserLikes(
-    did: string,
-  ): Promise<Array<{ authorDid: string; postUri: string; postCid: string }>> {
-    await this.ensureAuth();
+  private async getUserLikedPosts(did: string) {
     try {
-      const likes = await this.agent.app.bsky.feed.getActorLikes({
-        actor: did,
+      const serviceAgent = new AtpAgent({
+        service: await this.getServiceForIdentity(did),
+      });
+      const likes = await serviceAgent.com.atproto.repo.listRecords({
+        collection: "app.bsky.feed.like",
         limit: this.LIKES_PER_USER,
+        repo: did,
       });
 
-      return likes.data.feed.map((item) => ({
-        authorDid: item.post.author.did,
-        postUri: item.post.uri,
-        postCid: item.post.cid,
-      }));
+      return likes.data.records.map((item) => item.value).filter(isLike);
     } catch (err) {
       console.warn(`Failed to get likes for user ${did}:`, err);
-      return [];
+      throw err;
     }
   }
 
-  private async getAuthorPosts(
-    did: string,
-  ): Promise<Array<{ uri: string; cid: string }>> {
-    await this.ensureAuth();
+  private getPostAuthor(postUri: string) {
     try {
-      const feed = await this.agent.api.app.bsky.feed.getAuthorFeed({
-        actor: did,
+      const [did, ,] = postUri.split("/").slice(2);
+      if (!did) {
+        throw new Error(`Invalid post URI: ${postUri}`);
+      }
+
+      return did;
+    } catch (err) {
+      console.warn(`Failed to get author for post ${postUri}:`, err);
+      throw err;
+    }
+  }
+
+  private async getAuthorPosts(did: string) {
+    try {
+      const serviceAgent = new AtpAgent({
+        service: await this.getServiceForIdentity(did),
+      });
+      const posts = await serviceAgent.com.atproto.repo.listRecords({
+        collection: "app.bsky.feed.post",
         limit: this.POSTS_PER_AUTHOR,
+        repo: did,
       });
 
-      return feed.data.feed.map((item) => ({
-        uri: item.post.uri,
-        cid: item.post.cid,
-      }));
+      return posts.data.records;
     } catch (err) {
       console.warn(`Failed to get posts for author ${did}:`, err);
-      return [];
+      throw err;
     }
   }
 
@@ -150,11 +180,12 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
             // 2. Build author histogram from co-likers' recent activity
             const authorHistogram = new Map<string, number>();
             const coLikerLikes = await Promise.all(
-              coLikers.map((did) => this.getUserLikes(did)),
+              coLikers.map((did) => this.getUserLikedPosts(did)),
             );
 
             // Flatten and count author occurrences
-            coLikerLikes.flat().forEach(({ authorDid }) => {
+            coLikerLikes.flat().forEach(({ subject: { uri } }) => {
+              const authorDid = this.getPostAuthor(uri);
               authorHistogram.set(
                 authorDid,
                 (authorHistogram.get(authorDid) ?? 0) + 1,

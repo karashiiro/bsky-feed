@@ -6,7 +6,6 @@ import { getOpsByType } from "./util/ops";
 import { FirehoseSubscriptionBase } from "./util/subscription";
 import { subDays } from "date-fns";
 import { AtpAgent } from "@atproto/api";
-import { Config } from "./config";
 import { chunk } from "lodash";
 import { Database } from "./db";
 
@@ -45,6 +44,27 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         .map((did) => did.trim())
         .filter(Boolean),
     );
+  }
+
+  private async ensureAuth() {
+    if (
+      !process.env.FEEDGEN_ATP_IDENTIFIER ||
+      !process.env.FEEDGEN_ATP_APP_PASSWORD
+    ) {
+      throw new Error(
+        "ATP credentials not configured. Please set FEEDGEN_ATP_IDENTIFIER and FEEDGEN_ATP_APP_PASSWORD",
+      );
+    }
+
+    try {
+      await this.agent.login({
+        identifier: process.env.FEEDGEN_ATP_IDENTIFIER,
+        password: process.env.FEEDGEN_ATP_APP_PASSWORD,
+      });
+    } catch (err) {
+      console.error("Failed to authenticate with ATP:", err);
+      throw err;
+    }
   }
 
   private shouldProcessUser(did: string): boolean {
@@ -123,6 +143,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return;
 
+    await this.ensureAuth();
     const ops = await getOpsByType(evt);
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri);

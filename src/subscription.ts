@@ -60,7 +60,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         password: process.env.FEEDGEN_ATP_APP_PASSWORD,
       });
     } catch (err) {
-      logger.error(`Failed to authenticate with ATP: ${err.message}`);
+      console.error("Failed to authenticate with ATP:", err);
       throw err;
     }
   }
@@ -86,7 +86,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
       this.didServiceCache.set(did, serviceEndpoint);
       return serviceEndpoint;
     } catch (err) {
-      logger.warn(`Failed to get service for identity ${did}: ${err.message}`);
+      console.error(`Failed to get service for identity ${did}:`, err);
       throw err;
     }
   }
@@ -113,7 +113,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         .map((like) => like.actor.did)
         .filter((did) => !did.startsWith("did:web:"));
     } catch (err) {
-      logger.warn(`Failed to get likes for post ${uri}: ${err.message}`);
+      console.error(`Failed to get likes for post ${uri}:`, err);
       return [];
     }
   }
@@ -131,7 +131,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return likes.data.records.map((item) => item.value).filter(isLike);
     } catch (err) {
-      logger.warn(`Failed to get likes for user ${did}: ${err.message}`);
+      console.error(`Failed to get likes for user ${did}:`, err);
       throw err;
     }
   }
@@ -145,7 +145,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return did;
     } catch (err) {
-      logger.warn(`Failed to get author for post ${postUri}: ${err.message}`);
+      console.error(`Failed to get author for post ${postUri}:`, err);
       throw err;
     }
   }
@@ -163,7 +163,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return posts.data.records;
     } catch (err) {
-      logger.warn(`Failed to get posts for author ${did}: ${err.message}`);
+      console.error(`Failed to get posts for author ${did}:`, err);
       throw err;
     }
   }

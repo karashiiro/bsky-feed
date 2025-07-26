@@ -9,22 +9,6 @@ import { AtpAgent } from "@atproto/api";
 import { chunk } from "lodash";
 import { Database } from "./db";
 
-// ATP record types
-type RepoRecord = {
-  uri: string;
-  cid: string;
-  value: Record<string, unknown>;
-  repo: string;
-  rkey: string;
-};
-
-type LikeRecord = {
-  subject: {
-    uri: string;
-    cid: string;
-  };
-};
-
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private agent: AtpAgent;
   private monitoredUsers: Set<string>;

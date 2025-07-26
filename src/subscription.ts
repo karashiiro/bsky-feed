@@ -4,7 +4,6 @@ import {
 } from "./lexicon/types/com/atproto/sync/subscribeRepos";
 import { getOpsByType } from "./util/ops";
 import { FirehoseSubscriptionBase } from "./util/subscription";
-import algos from "./algos";
 import { subMinutes } from "date-fns";
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
@@ -14,21 +13,11 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     const ops = await getOpsByType(evt);
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri);
-    const postsToCreate = ops.posts.creates
-      .filter((create) => {
-        return Object.values(algos).some((algo) => algo.filter(create));
-      })
-      .map((create) => {
-        // map to db row
-        return {
-          uri: create.uri,
-          cid: create.cid,
-          indexedAt: new Date().toISOString(),
-        };
-      });
+    const postsToCreate = [];
 
-    // delete posts that are either in the delete list or older than 15 minutes
-    // this is to prevent the db from growing indefinitely
+    // TODO: The whole graph algorithm, outputs go in postsToCreate
+    const likes = ops.likes.creates;
+
     const deadline = subMinutes(new Date(), 15);
     await this.db
       .deleteFrom("post")

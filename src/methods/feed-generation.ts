@@ -3,6 +3,7 @@ import { Server } from "../lexicon";
 import { AppContext } from "../config";
 import algos from "../algos";
 import { AtUri } from "@atproto/syntax";
+import { validateAuth } from "../auth";
 
 export default function (server: Server, ctx: AppContext) {
   server.app.bsky.feed.getFeedSkeleton(async ({ params, req }) => {
@@ -18,17 +19,14 @@ export default function (server: Server, ctx: AppContext) {
         "UnsupportedAlgorithm",
       );
     }
-    /**
-     * Example of how to check auth if giving user-specific results:
-     *
-     * const requesterDid = await validateAuth(
-     *   req,
-     *   ctx.cfg.serviceDid,
-     *   ctx.didResolver,
-     * )
-     */
 
-    const body = await algo.generate(ctx, params);
+    const requesterDid = await validateAuth(
+      req,
+      ctx.cfg.serviceDid,
+      ctx.didResolver,
+    );
+
+    const body = await algo.generate(ctx, params, requesterDid);
     return {
       encoding: "application/json",
       body: body,

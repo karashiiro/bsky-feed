@@ -4,21 +4,20 @@ import {
 } from "../lexicon/types/app/bsky/feed/getFeedSkeleton";
 import { AppContext } from "../config";
 import { FeedHandler } from "./base";
-import { CreateOp } from "../util/ops";
-import { Record as PostRecord } from "../lexicon/types/app/bsky/feed/post";
 
 // max 15 chars
 export const shortname = "feed";
 
 export const handler = new (class extends FeedHandler {
-  filter(create: CreateOp<PostRecord>): boolean {
-    // only alf-related posts
-    return create.record.text.toLowerCase().includes("alf");
-  }
-  async generate(ctx: AppContext, params: QueryParams): Promise<OutputSchema> {
+  async generate(
+    ctx: AppContext,
+    params: QueryParams,
+    requesterDid: string,
+  ): Promise<OutputSchema> {
     let builder = ctx.db
       .selectFrom("post")
       .selectAll()
+      .where("viaLiker", "=", requesterDid)
       .orderBy("indexedAt", "desc")
       .orderBy("cid", "desc")
       .limit(params.limit);

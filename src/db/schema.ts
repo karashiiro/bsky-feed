@@ -4,8 +4,10 @@ export type DatabaseSchema = {
 };
 
 export type Post = {
+  id: string; // URI and liker DID
   uri: string;
   cid: string;
+  viaLiker: string; // The DID of the user who liked the post, used for feed generation
   indexedAt: string;
 };
 

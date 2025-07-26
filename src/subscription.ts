@@ -95,7 +95,9 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         limit: 100,
       });
 
-      return likes.data.likes.map((like) => like.actor.did);
+      return likes.data.likes
+        .map((like) => like.actor.did)
+        .filter((did) => !did.startsWith("did:web:"));
     } catch (err) {
       console.warn(`Failed to get likes for post ${uri}:`, err);
       return [];

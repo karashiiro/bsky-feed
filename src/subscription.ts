@@ -209,8 +209,10 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
             });
 
             // 3. Select top authors based on like frequency
-            const topAuthors = [...authorHistogram.entries()]
-              .sort((a, b) => b[1] - a[1])
+            const sortedAuthors = [...authorHistogram.entries()].sort(
+              (a, b) => b[1] - a[1],
+            );
+            const topAuthors = sortedAuthors
               .slice(
                 0,
                 Math.max(
@@ -219,6 +221,22 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
                 ),
               )
               .map(([did]) => did);
+
+            // Log author statistics
+            logger.info("Author like counts:", {
+              authorStats: sortedAuthors.map(([did, count]) => ({
+                did,
+                count,
+              })),
+              totalAuthors: authorHistogram.size,
+              totalLikes: sortedAuthors.reduce(
+                (sum, [, count]) => sum + count,
+                0,
+              ),
+              averageLikesPerAuthor:
+                sortedAuthors.reduce((sum, [, count]) => sum + count, 0) /
+                authorHistogram.size,
+            });
 
             // 4. Get recent posts from top authors
             const authorPosts = await Promise.all(

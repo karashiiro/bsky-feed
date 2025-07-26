@@ -243,8 +243,13 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
               topAuthors.map((did) => this.getAuthorPosts(did)),
             );
 
+            // Shuffle the flattened posts array
+            const shuffledPosts = authorPosts
+              .flat()
+              .sort(() => Math.random() - 0.5);
+
             // 5. Add posts to feed
-            authorPosts.flat().forEach((post) => {
+            shuffledPosts.forEach((post) => {
               postsToCreate.push({
                 id: `${post.uri}#${like.author}`,
                 uri: post.uri,

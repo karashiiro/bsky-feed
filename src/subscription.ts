@@ -75,20 +75,22 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private async getLikers(uri: string): Promise<string[]> {
     await this.ensureAuth();
     try {
-      const did = uri.split("/")[2];
-      const likes = await this.agent.api.com.atproto.repo.listRecords({
-        collection: "app.bsky.feed.like",
+      // First, get the liked post
+      const [did, collection, rkey] = uri.split("/").slice(2);
+      const post = await this.agent.api.com.atproto.repo.getRecord({
+        collection,
         repo: did,
+        rkey,
+      });
+
+      // Then get the likes
+      const likes = await this.agent.api.app.bsky.feed.getLikes({
+        uri,
+        cid: post.data.cid,
         limit: 100,
       });
 
-      const records = likes.data.records as RepoRecord[];
-      return records
-        .filter((record) => {
-          const like = record.value as LikeRecord;
-          return like.subject.uri === uri;
-        })
-        .map((record) => record.repo);
+      return likes.data.likes.map((like) => like.actor.did);
     } catch (err) {
       console.warn(`Failed to get likes for post ${uri}:`, err);
       return [];
@@ -100,21 +102,16 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   ): Promise<Array<{ authorDid: string; postUri: string; postCid: string }>> {
     await this.ensureAuth();
     try {
-      const likes = await this.agent.api.com.atproto.repo.listRecords({
-        collection: "app.bsky.feed.like",
-        repo: did,
+      const likes = await this.agent.api.app.bsky.feed.getActorLikes({
+        actor: did,
         limit: this.LIKES_PER_USER,
       });
 
-      const records = likes.data.records as RepoRecord[];
-      return records.map((record) => {
-        const like = record.value as LikeRecord;
-        return {
-          authorDid: like.subject.uri.split("/")[2],
-          postUri: like.subject.uri,
-          postCid: like.subject.cid,
-        };
-      });
+      return likes.data.feed.map((item) => ({
+        authorDid: item.post.author.did,
+        postUri: item.post.uri,
+        postCid: item.post.cid,
+      }));
     } catch (err) {
       console.warn(`Failed to get likes for user ${did}:`, err);
       return [];
@@ -126,16 +123,14 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   ): Promise<Array<{ uri: string; cid: string }>> {
     await this.ensureAuth();
     try {
-      const posts = await this.agent.api.com.atproto.repo.listRecords({
-        collection: "app.bsky.feed.post",
-        repo: did,
+      const feed = await this.agent.api.app.bsky.feed.getAuthorFeed({
+        actor: did,
         limit: this.POSTS_PER_AUTHOR,
       });
 
-      const records = posts.data.records as RepoRecord[];
-      return records.map((record) => ({
-        uri: `at://${did}/app.bsky.feed.post/${record.rkey}`,
-        cid: record.cid,
+      return feed.data.feed.map((item) => ({
+        uri: item.post.uri,
+        cid: item.post.cid,
       }));
     } catch (err) {
       console.warn(`Failed to get posts for author ${did}:`, err);

@@ -35,7 +35,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
   constructor(db: Database, service: string) {
     super(db, service);
-    this.agent = new AtpAgent({ service });
+    this.agent = new AtpAgent({ service: "https://bsky.social" });
     // Initialize monitored users set from environment variable
     const monitoredUsersEnv = process.env.FEEDGEN_MONITORED_USERS || "";
     this.monitoredUsers = new Set(
@@ -73,6 +73,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   }
 
   private async getLikers(uri: string): Promise<string[]> {
+    await this.ensureAuth();
     try {
       const did = uri.split("/")[2];
       const likes = await this.agent.api.com.atproto.repo.listRecords({
@@ -97,6 +98,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private async getUserLikes(
     did: string,
   ): Promise<Array<{ authorDid: string; postUri: string; postCid: string }>> {
+    await this.ensureAuth();
     try {
       const likes = await this.agent.api.com.atproto.repo.listRecords({
         collection: "app.bsky.feed.like",
@@ -122,6 +124,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private async getAuthorPosts(
     did: string,
   ): Promise<Array<{ uri: string; cid: string }>> {
+    await this.ensureAuth();
     try {
       const posts = await this.agent.api.com.atproto.repo.listRecords({
         collection: "app.bsky.feed.post",
@@ -143,7 +146,6 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return;
 
-    await this.ensureAuth();
     const ops = await getOpsByType(evt);
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri);

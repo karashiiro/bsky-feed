@@ -61,14 +61,14 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     try {
       // First, get the liked post
       const [did, collection, rkey] = uri.split("/").slice(2);
-      const post = await this.agent.api.com.atproto.repo.getRecord({
+      const post = await this.agent.com.atproto.repo.getRecord({
         collection,
         repo: did,
         rkey,
       });
 
       // Then get the likes
-      const likes = await this.agent.api.app.bsky.feed.getLikes({
+      const likes = await this.agent.app.bsky.feed.getLikes({
         uri,
         cid: post.data.cid,
         limit: 100,
@@ -86,7 +86,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   ): Promise<Array<{ authorDid: string; postUri: string; postCid: string }>> {
     await this.ensureAuth();
     try {
-      const likes = await this.agent.api.app.bsky.feed.getActorLikes({
+      const likes = await this.agent.app.bsky.feed.getActorLikes({
         actor: did,
         limit: this.LIKES_PER_USER,
       });

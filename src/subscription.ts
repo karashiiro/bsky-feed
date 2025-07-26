@@ -27,12 +27,12 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
   private readonly didServiceCache: Map<string, string>;
   private readonly BATCH_SIZE = 25;
   private readonly LIKES_PER_USER = 50;
-  private readonly TOP_AUTHOR_PERCENTAGE = 0.1;
+  private readonly TOP_AUTHOR_PERCENTAGE = 0.02; // top 2% of authors
   private readonly POSTS_PER_AUTHOR = 10;
 
   constructor(db: Database, service: string) {
     super(db, service);
-    this.agent = new AtpAgent({ service });
+    this.agent = new AtpAgent({ service: "https://bsky.social" });
     // Initialize monitored users set from environment variable
     const monitoredUsersEnv = process.env.FEEDGEN_MONITORED_USERS || "";
     this.monitoredUsers = new Set(
@@ -163,8 +163,8 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return posts.data.records;
     } catch (err) {
-      console.error(`Failed to get posts for author ${did}:`, err);
-      throw err;
+      console.warn(`Failed to get posts for author ${did}:`, err);
+      return []; // Sometimes happens for unknown reasons
     }
   }
 
@@ -212,19 +212,17 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
             const sortedAuthors = [...authorHistogram.entries()].sort(
               (a, b) => b[1] - a[1],
             );
-            const topAuthors = sortedAuthors
-              .slice(
-                0,
-                Math.max(
-                  1,
-                  Math.ceil(authorHistogram.size * this.TOP_AUTHOR_PERCENTAGE),
-                ),
-              )
-              .map(([did]) => did);
+            const topAuthors = sortedAuthors.slice(
+              0,
+              Math.max(
+                1,
+                Math.ceil(authorHistogram.size * this.TOP_AUTHOR_PERCENTAGE),
+              ),
+            );
 
             // Log author statistics
             logger.info("Author like counts:", {
-              authorStats: sortedAuthors.map(([did, count]) => ({
+              authorStats: topAuthors.map(([did, count]) => ({
                 did,
                 count,
               })),
@@ -240,7 +238,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
             // 4. Get recent posts from top authors
             const authorPosts = await Promise.all(
-              topAuthors.map((did) => this.getAuthorPosts(did)),
+              topAuthors.map(([did]) => this.getAuthorPosts(did)),
             );
 
             // Shuffle the flattened posts array

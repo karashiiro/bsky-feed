@@ -2,12 +2,18 @@ import {
   OutputSchema as RepoEvent,
   isCommit,
 } from "./lexicon/types/com/atproto/sync/subscribeRepos";
-import { getOpsByType, isLike, isPost } from "./util/ops";
+import { getOpsByType, isLike } from "./util/ops";
 import { FirehoseSubscriptionBase } from "./util/subscription";
 import { subDays } from "date-fns";
 import { AtpAgent } from "@atproto/api";
 import { chunk } from "lodash";
 import { Database } from "./db";
+import winston from "winston";
+
+const logger = winston.createLogger({
+  format: winston.format.json(),
+  transports: [new winston.transports.Console()],
+});
 
 interface PDSDirectoryResponse {
   service: {
@@ -16,8 +22,9 @@ interface PDSDirectoryResponse {
 }
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
-  private agent: AtpAgent;
-  private monitoredUsers: Set<string>;
+  private readonly agent: AtpAgent;
+  private readonly monitoredUsers: Set<string>;
+  private readonly didServiceCache: Map<string, string>;
   private readonly BATCH_SIZE = 25;
   private readonly LIKES_PER_USER = 50;
   private readonly TOP_AUTHOR_PERCENTAGE = 0.1;
@@ -25,7 +32,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
   constructor(db: Database, service: string) {
     super(db, service);
-    this.agent = new AtpAgent({ service: "https://bsky.social" });
+    this.agent = new AtpAgent({ service });
     // Initialize monitored users set from environment variable
     const monitoredUsersEnv = process.env.FEEDGEN_MONITORED_USERS || "";
     this.monitoredUsers = new Set(
@@ -34,6 +41,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         .map((did) => did.trim())
         .filter(Boolean),
     );
+    this.didServiceCache = new Map();
   }
 
   private async ensureAuth() {
@@ -52,7 +60,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         password: process.env.FEEDGEN_ATP_APP_PASSWORD,
       });
     } catch (err) {
-      console.error("Failed to authenticate with ATP:", err);
+      logger.error(`Failed to authenticate with ATP: ${err.message}`);
       throw err;
     }
   }
@@ -64,15 +72,21 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
   private async getServiceForIdentity(did: string): Promise<string> {
     try {
+      if (this.didServiceCache.has(did)) {
+        return this.didServiceCache.get(did)!;
+      }
+
       const profile = await fetch(`https://plc.directory/${did}/`);
       const data = (await profile.json()) as PDSDirectoryResponse;
       const serviceEndpoint = data.service[0]?.serviceEndpoint;
       if (!serviceEndpoint) {
         throw new Error(`No service endpoint found for identity ${did}`);
       }
+
+      this.didServiceCache.set(did, serviceEndpoint);
       return serviceEndpoint;
     } catch (err) {
-      console.warn(`Failed to get service for identity ${did}:`, err);
+      logger.warn(`Failed to get service for identity ${did}: ${err.message}`);
       throw err;
     }
   }
@@ -99,7 +113,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         .map((like) => like.actor.did)
         .filter((did) => !did.startsWith("did:web:"));
     } catch (err) {
-      console.warn(`Failed to get likes for post ${uri}:`, err);
+      logger.warn(`Failed to get likes for post ${uri}: ${err.message}`);
       return [];
     }
   }
@@ -117,7 +131,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return likes.data.records.map((item) => item.value).filter(isLike);
     } catch (err) {
-      console.warn(`Failed to get likes for user ${did}:`, err);
+      logger.warn(`Failed to get likes for user ${did}: ${err.message}`);
       throw err;
     }
   }
@@ -131,7 +145,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return did;
     } catch (err) {
-      console.warn(`Failed to get author for post ${postUri}:`, err);
+      logger.warn(`Failed to get author for post ${postUri}: ${err.message}`);
       throw err;
     }
   }
@@ -149,7 +163,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
       return posts.data.records;
     } catch (err) {
-      console.warn(`Failed to get posts for author ${did}:`, err);
+      logger.warn(`Failed to get posts for author ${did}: ${err.message}`);
       throw err;
     }
   }
@@ -222,7 +236,9 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
               });
             });
           } catch (err) {
-            console.error("Error processing like for feed generation:", err);
+            logger.error(
+              `Error processing like for feed generation: ${err.message} ${err.stack}`,
+            );
           }
         }),
       );
